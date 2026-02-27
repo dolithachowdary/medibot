@@ -17,6 +17,18 @@ export const Welcome = (parent, onComplete) => {
         render();
       });
       container.appendChild(backBtn);
+
+      // Skip button only on step 2
+      if (step === 2) {
+        const skipBtn = document.createElement('button');
+        skipBtn.className = 'btn-skip';
+        skipBtn.textContent = 'Skip';
+        skipBtn.addEventListener('click', () => {
+          step = 4;
+          render();
+        });
+        container.appendChild(skipBtn);
+      }
     }
 
     if (step === 1) {
@@ -91,7 +103,7 @@ export const Welcome = (parent, onComplete) => {
           <h1 class="feature-title">Smart Health Hub</h1>
         </div>
 
-        <div class="hub-illustration">
+        <div class="hub-illustration" style="transform: scale(0.82); transform-origin: top center; margin-bottom: -1.5rem;">
           <div class="hub-center">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="white"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
           </div>
@@ -143,26 +155,26 @@ export const Welcome = (parent, onComplete) => {
           <h1 class="feature-title">Smart Reminders</h1>
         </div>
 
-        <div style="height: 180px; display: flex; align-items: center; justify-content: center; margin-bottom: 2rem;">
-          <div style="width: 100px; height: 100px; background: #3b82f6; border-radius: 24px; display: flex; align-items: center; justify-content: center; transform: rotate(-5deg); box-shadow: 0 15px 30px rgba(59,130,246,0.3);">
-            <svg width="50" height="50" viewBox="0 0 24 24" fill="white"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <div style="height: 120px; display: flex; align-items: center; justify-content: center; margin-bottom: 0.8rem;">
+          <div style="width: 80px; height: 80px; background: #3b82f6; border-radius: 24px; display: flex; align-items: center; justify-content: center; transform: rotate(-5deg); box-shadow: 0 15px 30px rgba(59,130,246,0.3);">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="white"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           </div>
         </div>
 
         <div class="feature-list">
-          <div class="feature-item">
-            <div class="feature-icon-box" style="background: #dcfce7;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-            <div class="feature-text">Enable daily health check reminder</div>
-          </div>
-          <div class="feature-item">
-            <div class="feature-icon-box" style="background: #fce7f3;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#db2777" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg></div>
-            <div class="feature-text">Remind me to take medications</div>
-          </div>
-          <div class="feature-item">
-            <div class="feature-icon-box" style="background: #f1f5f9;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg></div>
-            <div class="feature-text">Sleep or hydration tracking</div>
+          <div class="feature-item" style="padding: 1rem 1.2rem; border-radius: 20px;">
+            <div class="feature-icon-box" style="background: #fce7f3;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#db2777" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>
+            </div>
+            <div class="feature-text" style="flex: 1;">Medication Reminders</div>
+            <label class="notif-toggle toggle-hint">
+              <input type="checkbox" id="notif-toggle">
+              <span class="notif-slider"></span>
+            </label>
           </div>
         </div>
+
+        <p style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 1rem;">Do it later &nbsp;·&nbsp; <span id="skip-notif" style="color: var(--primary); text-decoration: underline; cursor: pointer;">Skip</span></p>
       </div>
 
       <div class="onboarding-footer">
@@ -172,10 +184,13 @@ export const Welcome = (parent, onComplete) => {
           <div class="onboarding-dot active"></div>
         </div>
         <button class="btn-continue" id="next-btn">Continue</button>
-        <p style="text-align: center; color: var(--text-muted); font-size: 0.9rem; margin-top: 1rem; cursor: pointer;">Skip</p>
       </div>
     `;
     content.querySelector('#next-btn').addEventListener('click', () => {
+      step++;
+      render();
+    });
+    content.querySelector('#skip-notif').addEventListener('click', () => {
       step++;
       render();
     });

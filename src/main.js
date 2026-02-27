@@ -1,15 +1,24 @@
 import './style.css'
 import { Welcome } from './pages/Welcome.js';
 import { Auth } from './pages/Auth.js';
-import { UserDetails } from './pages/UserDetails.js';
 import { Dashboard } from './pages/Dashboard.js';
 
 const app = document.querySelector('#app')
 
-// State Management
 let state = {
-  screen: 'onboarding', // onboarding, auth, user-details, dashboard
+  screen: 'onboarding',
   user: null
+}
+
+// Restore session on load
+const savedUser = localStorage.getItem('user');
+if (savedUser) {
+  try {
+    state.user = JSON.parse(savedUser);
+    state.screen = 'dashboard';
+  } catch (_) {
+    localStorage.removeItem('user');
+  }
 }
 
 const render = () => {
@@ -23,22 +32,16 @@ const render = () => {
     });
   } else if (state.screen === 'auth') {
     Auth(container, (userData) => {
-      // After auth, check if they need to setup profile or go to dashboard
-      // For now, if it's signup, go to user-details, if login, go to dashboard
-      localStorage.setItem('user', JSON.stringify(userData));
-      state.screen = 'user-details';
+      state.user = userData;
+      state.screen = 'dashboard';
+      render();
+    }, () => {
+      state.screen = 'onboarding';
       render();
     });
-  } else if (state.screen === 'user-details') {
-    UserDetails(container, (userData) => {
-      state.user = userData
-      state.screen = 'dashboard'
-      render()
-    })
   } else if (state.screen === 'dashboard') {
     Dashboard(container, state.user)
   }
 }
 
-// Initial render
 render()

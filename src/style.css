@@ -232,7 +232,7 @@ body {
 }
 
 .input-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.8rem;
 }
 
 label {
@@ -246,7 +246,7 @@ input,
 select,
 textarea {
   width: 100%;
-  padding: 1rem;
+  padding: 0.8rem 1rem;
   border: 2px solid #e2e8f0;
   border-radius: 12px;
   font-size: 1rem;
@@ -306,19 +306,20 @@ input:focus {
 
 /* Onboarding / Feature Pages */
 .feature-container {
-  padding: 2.5rem 1.5rem;
+  padding: 1.2rem 1.5rem 0 1.5rem;
   height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   background: var(--bg-light);
   position: relative;
+  overflow: hidden;
 }
 
 .feature-header {
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.8rem;
   text-align: left;
-  padding-top: 2rem;
+  padding-top: 2.5rem;
 }
 
 .feature-tag {
@@ -341,12 +342,12 @@ input:focus {
 .feature-list {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 0.5rem;
 }
 
 .feature-item {
   background: white;
-  padding: 0.8rem 1rem;
+  padding: 0.65rem 1rem;
   border-radius: 16px;
   display: flex;
   align-items: center;
@@ -373,14 +374,14 @@ input:focus {
 }
 
 .onboarding-footer {
-  padding-bottom: 2rem;
+  padding-bottom: 1.2rem;
 }
 
 .onboarding-dots {
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 /* Navigation & General UI */
@@ -391,15 +392,97 @@ input:focus {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: white;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+  border: none;
+  box-shadow: none;
   cursor: pointer;
   z-index: 10;
   transition: transform 0.2s;
+  padding-bottom: 4px;
+}
+
+.btn-skip {
+  position: absolute;
+  top: 1.6rem;
+  right: 1.5rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  z-index: 10;
+  padding: 0.3rem 0.5rem;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Notification Toggle */
+.notif-toggle {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.notif-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.notif-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #cbd5e1;
+  border-radius: 50px;
+  transition: 0.3s;
+}
+
+.notif-slider::before {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  left: 3px;
+  top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.notif-toggle input:checked+.notif-slider {
+  background: var(--primary);
+}
+
+.notif-toggle input:checked+.notif-slider::before {
+  transform: translateX(22px);
+}
+
+/* Pulse hint on unchecked toggle */
+@keyframes toggle-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 82, 204, 0.35);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(0, 82, 204, 0);
+  }
+}
+
+.toggle-hint .notif-slider {
+  animation: toggle-pulse 1.8s ease-in-out infinite;
+}
+
+.toggle-hint input:checked+.notif-slider {
+  animation: none;
 }
 
 .btn-back:active {
@@ -569,4 +652,130 @@ input:focus {
 .node-4 {
   bottom: 10px;
   right: 50px;
+}
+
+/* Auth Page */
+.auth-container {
+  height: 100%;
+  padding: 0 1.5rem;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.auth-container::-webkit-scrollbar {
+  display: none;
+}
+
+.auth-note {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-top: 0.8rem;
+}
+
+.auth-note span {
+  color: var(--primary);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Sign Up scrollable body */
+.signup-scroll {
+  overflow-y: auto;
+  flex: 1;
+  padding-bottom: 1rem;
+  scrollbar-width: none;
+}
+
+.signup-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.signup-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.signup-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.signup-divider-text {
+  font-size: 0.8rem;
+  color: var(--primary);
+  font-weight: 600;
+  text-align: center;
+  padding: 0.6rem 0;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  margin: 0.4rem 0;
+  font-style: italic;
+}
+
+/* ── Bottom Tab Navigation ── */
+.bottom-nav {
+  display: flex;
+  background: white;
+  border-top: 1px solid #f1f5f9;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
+  padding: 0.5rem 0.5rem calc(0.5rem + env(safe-area-inset-bottom));
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.bottom-nav-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0.5rem 0.25rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 16px;
+  transition: background 0.2s;
+  color: #94a3b8;
+  font-family: 'Poppins', sans-serif;
+}
+
+.bottom-nav-tab span {
+  font-size: 0.68rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.bottom-nav-tab svg {
+  transition: stroke 0.2s;
+}
+
+.bottom-nav-tab.active {
+  color: var(--primary);
+  background: #eff6ff;
+}
+
+.bottom-nav-tab.active span {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* Tab content area */
+.tab-content {
+  min-height: 100%;
+}
+
+/* Dashboard header inside tab-body */
+.dashboard-header {
+  position: relative;
+  background: var(--primary);
+  padding: 2.5rem 1.5rem 3.5rem 1.5rem;
+  border-bottom-left-radius: 40px;
+  border-bottom-right-radius: 40px;
+  color: white;
 }
