@@ -1,5 +1,6 @@
-export const AiChat = (parent, { onBack, user }) => {
-  const API_BASE = 'http://localhost:3001';
+export const AiChat = (parent, { onBack, user, autoOpenPin = false }) => {
+  // Determine API base dynamically to support local IP testing (mobile)
+  const API_BASE = window.location.origin.replace(':5173', ':3001');
 
   // Conversation history sent to Groq (only role+content)
   const history = [];
@@ -208,15 +209,48 @@ export const AiChat = (parent, { onBack, user }) => {
         </div>
 
         <!-- Input row -->
-        <div style="background:white; border-top:1px solid #f1f5f9; padding:0.75rem 1rem; display:flex; gap:0.6rem; align-items:center; flex-shrink:0;">
-          <button style="background:none; border:none; cursor:pointer; color:var(--text-muted); display:flex; flex-shrink:0;">
+        <div style="background:white; border-top:1px solid #f1f5f9; padding:0.75rem 1rem; display:flex; gap:0.6rem; align-items:center; flex-shrink:0; position:relative;">
+
+          <!-- Pin popup menu (shown when pin-btn toggled) -->
+          <div id="pin-menu" style="display:none; position:absolute; bottom:68px; left:12px;
+               background:white; border-radius:16px; box-shadow:0 8px 30px rgba(0,0,0,0.12);
+               border:1px solid #f1f5f9; overflow:hidden; z-index:100; min-width:200px;">
+            <button class="pin-option" data-type="camera"
+              style="width:100%; display:flex; align-items:center; gap:0.7rem; padding:0.85rem 1rem;
+                     background:none; border:none; cursor:pointer; font-size:0.83rem; font-family:'Poppins',sans-serif;
+                     color:var(--text-main); font-weight:600; border-bottom:1px solid #f8fafc;">
+              <span style="width:34px;height:34px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+              </span>
+              Take Picture
+            </button>
+            <button class="pin-option" data-type="gallery"
+              style="width:100%; display:flex; align-items:center; gap:0.7rem; padding:0.85rem 1rem;
+                     background:none; border:none; cursor:pointer; font-size:0.83rem; font-family:'Poppins',sans-serif;
+                     color:var(--text-main); font-weight:600; border-bottom:1px solid #f8fafc;">
+              <span style="width:34px;height:34px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+              </span>
+              Upload from Gallery
+            </button>
+            <button class="pin-option" data-type="files"
+              style="width:100%; display:flex; align-items:center; gap:0.7rem; padding:0.85rem 1rem;
+                     background:none; border:none; cursor:pointer; font-size:0.83rem; font-family:'Poppins',sans-serif;
+                     color:var(--text-main); font-weight:600;">
+              <span style="width:34px;height:34px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </span>
+              Upload from Files
+            </button>
+          </div>
+
+          <!-- Pin button -->
+          <button id="pin-btn" style="background:none; border:none; cursor:pointer; color:var(--text-muted); display:flex; flex-shrink:0;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </button>
+
           <input id="chat-input" type="text" placeholder="Ask about your health..."
                  style="flex:1; border:none; outline:none; font-size:0.84rem; font-family:'Poppins',sans-serif; color:var(--text-main); background:transparent; min-width:0;" />
-          <button style="background:none; border:none; cursor:pointer; color:var(--text-muted); display:flex; flex-shrink:0;">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-          </button>
           <button id="send-btn"
                   style="width:40px; height:40px; background:var(--primary); border:none; border-radius:50%; cursor:pointer;
                          display:flex; align-items:center; justify-content:center;
@@ -227,6 +261,7 @@ export const AiChat = (parent, { onBack, user }) => {
       </div>
     `;
 
+
     parent.querySelector('#chat-back').addEventListener('click', onBack);
 
     const input = parent.querySelector('#chat-input');
@@ -235,6 +270,93 @@ export const AiChat = (parent, { onBack, user }) => {
     parent.querySelectorAll('.quick-chip').forEach(btn => {
       btn.addEventListener('click', () => sendMessage(btn.dataset.label));
     });
+
+    // Pin menu toggle
+    const pinBtn = parent.querySelector('#pin-btn');
+    const pinMenu = parent.querySelector('#pin-menu');
+
+    pinBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = pinMenu.style.display === 'block';
+      pinMenu.style.display = open ? 'none' : 'block';
+    });
+
+    // Close menu on clicking outside
+    document.addEventListener('click', () => { pinMenu.style.display = 'none'; }, { once: false });
+    pinMenu.addEventListener('click', e => e.stopPropagation());
+
+    // Pin menu options → hidden file inputs
+    parent.querySelectorAll('.pin-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        pinMenu.style.display = 'none';
+        const type = btn.dataset.type;
+        const fi = document.createElement('input');
+        fi.type = 'file';
+        if (type === 'camera') {
+          fi.accept = 'image/*';
+          fi.capture = 'environment';
+        } else if (type === 'gallery') {
+          fi.accept = 'image/*';
+        } else {
+          fi.accept = '.pdf,image/jpeg,image/png,image/webp';
+        }
+        fi.style.display = 'none';
+        document.body.appendChild(fi);
+        fi.onchange = async () => {
+          const file = fi.files?.[0];
+          fi.remove();
+          if (!file) return;
+          uploadAndAnalyse(file);
+        };
+        fi.click();
+      });
+    });
+
+    // Upload a file, show spinner, then stream result into chat
+    async function uploadAndAnalyse(file) {
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.9);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.8rem;';
+      overlay.innerHTML = `
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        <p style="font-size:0.88rem;font-weight:700;color:var(--text-main);font-family:'Poppins',sans-serif;">Analysing your report…</p>`;
+      if (!document.getElementById('spin-style')) {
+        const s = document.createElement('style'); s.id = 'spin-style';
+        s.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+        document.head.appendChild(s);
+      }
+      parent.appendChild(overlay);
+      try {
+        const form = new FormData();
+        form.append('report', file);
+        if (user) form.append('patient', JSON.stringify(user));
+        const res = await fetch(`${API_BASE}/api/upload/report`, { method: 'POST', body: form });
+        const data = await res.json();
+        overlay.remove();
+        if (!res.ok || !data.report) {
+          displayMsgs.push({ role: 'bot', text: `❌ Could not analyse the file: ${data.error || 'Unknown error'}`, time: formatTime(new Date()) });
+        } else {
+          const r = data.report;
+          const text = [
+            `📋 **${r.lab_name || 'Lab Report'}** — ${r.report_date || ''}`,
+            `Status: **${r.overall_status || '—'}**`,
+            '',
+            r.summary || '',
+            '',
+            ...(r.findings || []).map(f => `• **${f.name}**: ${f.value} (${f.status}) — ${f.insight}`),
+          ].join('\n');
+          displayMsgs.push({ role: 'bot', text, time: formatTime(new Date()) });
+        }
+        refreshMessages(false);
+      } catch (err) {
+        overlay.remove();
+        displayMsgs.push({ role: 'bot', text: `❌ Network error: ${err.message}`, time: formatTime(new Date()) });
+        refreshMessages(false);
+      }
+    }
+
+    if (autoOpenPin) {
+      setTimeout(() => { pinMenu.style.display = 'block'; }, 150);
+    }
 
     scrollToBottom();
   }

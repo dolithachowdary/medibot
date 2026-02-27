@@ -1,6 +1,7 @@
 import { MedicationTab } from './Medication.js';
 import { AiChat } from './AiChat.js';
 import { ReportsPage } from './Reports.js';
+import { ReportView } from './ReportView.js';
 
 
 export const Dashboard = (parent, user) => {
@@ -35,7 +36,7 @@ export const Dashboard = (parent, user) => {
         <div style="display:flex; align-items:center; gap:0.5rem;">
           <div id="open-chat-btn" style="width:38px; height:38px; border-radius:50%; background:#f1f5f9; display:flex; align-items:center; justify-content:center; cursor:pointer;" title="AI Assistant">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-main)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" x2="6" y1="1" y2="4"/><line x1="10" x2="10" y1="1" y2="4"/><line x1="14" x2="14" y1="1" y2="4"/>
+              <path d="M12 6V2H8"/><path d="m8 18-4 4V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2Z"/><path d="M2 12h2"/><path d="M9 11v2"/><path d="M15 11v2"/><path d="M20 12h2"/>
             </svg>
           </div>
           <div style="width:38px; height:38px; border-radius:50%; background:#f1f5f9; display:flex; align-items:center; justify-content:center; cursor:pointer;">
@@ -111,7 +112,7 @@ export const Dashboard = (parent, user) => {
 
       <!-- Upload Report FAB -->
       <div id="upload-report-fab" style="position:sticky; bottom:1rem; display:flex; justify-content:flex-end; padding-right:1rem; pointer-events:none;">
-        <div style="background:var(--primary); color:white; border-radius:50px; padding:0.65rem 1.1rem; display:flex; align-items:center; gap:0.5rem; box-shadow:0 6px 20px rgba(0,82,204,0.38); cursor:pointer; pointer-events:all;">
+        <div id="fab-upload-btn" style="background:var(--primary); color:white; border-radius:50px; padding:0.65rem 1.1rem; display:flex; align-items:center; gap:0.5rem; box-shadow:0 6px 20px rgba(0,82,204,0.38); cursor:pointer; pointer-events:all;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="18" y2="12"/><line x1="9" x2="15" y1="15" y2="15"/></svg>
           <span style="font-size:0.8rem; font-weight:700; font-family:'Poppins',sans-serif;">Upload Report</span>
         </div>
@@ -209,7 +210,7 @@ export const Dashboard = (parent, user) => {
             medTab.render(body);
         }
 
-        // Logout + chat + tab-medication-link + view-all-reports
+        // Logout + chat + tab-medication-link + view-all-reports + FAB upload
         parent.addEventListener('click', e => {
             if (e.target.closest('#logout-btn')) {
                 localStorage.removeItem('user');
@@ -227,6 +228,14 @@ export const Dashboard = (parent, user) => {
             }
             if (e.target.closest('#view-all-reports')) {
                 openReportsPage();
+            }
+            if (e.target.closest('#fab-upload-btn')) {
+                // Open chat with pin menu active
+                AiChat(parent, {
+                    user,
+                    onBack: () => render(),
+                    autoOpenPin: true
+                });
             }
         });
 
