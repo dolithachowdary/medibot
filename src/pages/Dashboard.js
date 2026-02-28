@@ -206,7 +206,7 @@ export const Dashboard = (parent, user) => {
         // Render medication tab separately (has its own state)
         if (activeTab === 'medication') {
             const body = parent.querySelector('#tab-body');
-            const medTab = MedicationTab();
+            const medTab = MedicationTab(user);
             medTab.render(body);
         }
 

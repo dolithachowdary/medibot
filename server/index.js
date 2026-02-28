@@ -9,6 +9,7 @@ import userRoutes from './routes/user.js';
 import chatRoutes from './routes/chat.js';
 import reportRoutes from './routes/report.js';
 import uploadRoutes from './routes/upload.js';
+import medicationRoutes from './routes/medication.js';
 
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -25,6 +26,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/medication', medicationRoutes);
 
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }));

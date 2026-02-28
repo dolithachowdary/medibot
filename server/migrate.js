@@ -13,6 +13,8 @@ async function migrate() {
     console.log('Running migration...');
 
     // Create users table with email + password_hash
+    await sql`DROP TABLE IF EXISTS medication_logs, medications CASCADE`;
+
     await sql`
     CREATE TABLE IF NOT EXISTS users (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -51,14 +53,28 @@ async function migrate() {
       user_id UUID REFERENCES users(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
       dosage TEXT,
-      frequency TEXT,
-      start_date DATE,
-      end_date DATE,
+      frequency TEXT[], -- ['morning', 'afternoon', 'evening']
+      start_date DATE DEFAULT CURRENT_DATE,
+      duration_days INTEGER,
       is_active BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     )
   `;
     console.log('✅ medications table ready');
+
+    // Create medication_logs table to track adherence
+    await sql`
+    CREATE TABLE IF NOT EXISTS medication_logs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      medication_id UUID REFERENCES medications(id) ON DELETE CASCADE,
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      log_date DATE NOT NULL,
+      dose_type TEXT NOT NULL, -- 'morning', 'afternoon', 'evening'
+      taken_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (user_id, medication_id, log_date, dose_type)
+    )
+  `;
+    console.log('✅ medication_logs table ready');
 
     // Create chats table
     await sql`
