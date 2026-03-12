@@ -70,13 +70,28 @@ export const ReportView = (parent, { report, fileName, onBack, user }) => {
         <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem;">
           ${docIcon}
           <div>
-            <h1 style="font-size:1rem; font-weight:700; color:#1e293b; margin:0 0 0.2rem;">${report.lab_name || 'General Diagnostics'}</h1>
+            <h1 style="font-size:1rem; font-weight:700; color:#1e293b; margin:0 0 0.2rem;">${report.report_name || report.lab_name || 'General Diagnostics'}</h1>
             <div style="display:flex; align-items:center; gap:0.4rem; color:#64748b; font-size:0.72rem;">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
               <span>${report.report_date ? new Date(report.report_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'}</span>
             </div>
-            <p style="font-size:0.68rem; color:#94a3b8; font-weight:600; margin:0.1rem 0 0; text-transform:uppercase; letter-spacing:0.5px;">REPORT ID: #${report.id ? report.id.substring(0,8).toUpperCase() : '12345'}</p>
+            <p style="font-size:0.68rem; color:#94a3b8; font-weight:600; margin:0.1rem 0 0; text-transform:uppercase; letter-spacing:0.5px;">REPORT ID: #${report.id ? report.id.substring(0,8).toUpperCase() : 'NEW'}</p>
           </div>
+        </div>
+
+        <!-- The Brief -->
+        <div style="background:#f8fafc; border-radius:18px; padding:1.2rem; border:1px solid #f1f5f9; margin-bottom:1.6rem;">
+          <h3 style="font-size:0.88rem; font-weight:700; color:#1e293b; margin:0 0 0.4rem; display:flex; align-items:center; gap:6px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8 7h6"/><path d="M8 11h8"/></svg>
+            The Brief
+          </h3>
+          <p style="font-size:0.8rem; color:#334155; line-height:1.5; margin:0;">${report.brief || 'No brief available.'}</p>
+        </div>
+
+        <!-- Purpose -->
+        <div style="margin-bottom:1.6rem;">
+          <h3 style="font-size:0.85rem; font-weight:700; color:#64748b; margin:0 0 0.3rem; text-transform:uppercase; letter-spacing:0.5px;">Why was this done?</h3>
+          <p style="font-size:0.78rem; color:#475569; line-height:1.5; margin:0; font-style:italic;">"${report.purpose || 'Routine health screening.'}"</p>
         </div>
 
         <!-- Abnormal Markers Alert -->
@@ -115,6 +130,13 @@ export const ReportView = (parent, { report, fileName, onBack, user }) => {
                 <div style="width:100%; height:5px; background:#f1f5f9; border-radius:10px; overflow:hidden;">
                   <div style="width:${percentage}%; height:100%; background:${style.bar}; border-radius:10px;"></div>
                 </div>
+
+                ${(m.explanation || m.insight) ? `
+                  <p style="font-size:0.75rem; color:#475569; line-height:1.5; margin:0.9rem 0 0; padding-top:0.8rem; border-top:1px dashed #e2e8f0;">
+                    <strong style="color:${style.color}; font-size:0.65rem; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:4px;">What this means:</strong> 
+                    ${m.explanation || m.insight}
+                  </p>
+                ` : ''}
               </div>
             `;
           }).join('')}

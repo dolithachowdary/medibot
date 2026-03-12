@@ -1,18 +1,15 @@
 export const AiChat = (parent, { onBack, user, autoOpenPin = false, reportContext = null }) => {
-  // Determine API base dynamically to support local IP testing (mobile)
   const API_BASE = window.location.origin.replace(':5173', ':3001');
 
-  // Conversation history sent to Groq (only role+content)
+  // Stateless conversation history for the current tab session
   const history = [];
-
-  // Display messages (include time for UI)
   const displayMsgs = [
     {
       role: 'bot',
       text: reportContext 
         ? `I see you're looking at your **${reportContext.lab_name || 'Lab'}** report from **${reportContext.report_date ? new Date(reportContext.report_date).toLocaleDateString() : 'recently'}**. How can I help you understand these results?`
         : `Hello${user?.name ? ' ' + user.name.split(' ')[0] : ''}! 👋 I'm **MediBot**, your personal health assistant.\n\nI can help you understand your reports, medications, lab values, or anything health-related. What's on your mind today?`,
-      time: formatTime(new Date()),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ];
 
@@ -24,13 +21,14 @@ export const AiChat = (parent, { onBack, user, autoOpenPin = false, reportContex
   ];
 
   let isTyping = false;
+  let pendingAttachment = null;
 
   function formatTime(d) {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
-  // Convert **bold**, bullet points, blank lines → HTML
   function parseMd(text) {
+    if (typeof text !== 'string') return '';
     const lines = text.split('\n');
     let html = '';
     for (const raw of lines) {
@@ -61,12 +59,12 @@ export const AiChat = (parent, { onBack, user, autoOpenPin = false, reportContex
       </svg>
     </div>`;
 
-  function renderMessages(streamIdx = null) {
-    return displayMsgs.map((m, idx) => m.role === 'bot'
-      ? `<div style="display:flex; gap:0.7rem; align-items:flex-end; margin-bottom:1rem;">
+  function renderMessages() {
+    return displayMsgs.map(m => m.role === 'bot'
+      ? `<div style="display:flex; gap:0.7rem; align-items:flex-start; margin-bottom:1rem;">
            ${botAvatar}
            <div style="max-width:72%;">
-             <p style="font-size:0.6rem; color:var(--text-muted); margin-bottom:3px;">MediBot</p>
+             <p style="font-size:0.6rem; color:var(--text-muted); margin-bottom:1px;">MediBot</p>
              <div style="background:white; border-radius:4px 18px 18px 18px; padding:0.7rem 0.9rem;
                          box-shadow:0 2px 12px rgba(0,0,0,0.06); border:1px solid #f1f5f9;">
                <p style="font-size:0.82rem; color:var(--text-main); line-height:1.5;">${parseMd(m.text)}</p>
@@ -74,10 +72,10 @@ export const AiChat = (parent, { onBack, user, autoOpenPin = false, reportContex
              <p style="font-size:0.58rem; color:var(--text-muted); margin-top:3px;">${m.time}</p>
            </div>
          </div>`
-      : `<div style="display:flex; gap:0.7rem; align-items:flex-end; flex-direction:row-reverse; margin-bottom:1rem;">
+      : `<div style="display:flex; gap:0.7rem; align-items:flex-start; flex-direction:row-reverse; margin-bottom:1rem;">
            ${userAvatar}
            <div style="max-width:72%;">
-             <p style="font-size:0.6rem; color:var(--text-muted); margin-bottom:3px; text-align:right;">You</p>
+             <p style="font-size:0.6rem; color:var(--text-muted); margin-bottom:1px; text-align:right;">You</p>
              <div style="background:var(--primary); border-radius:18px 4px 18px 18px; padding:0.7rem 0.9rem;">
                <p style="font-size:0.82rem; color:white; line-height:1.5;">${parseMd(m.text)}</p>
              </div>
@@ -105,25 +103,23 @@ export const AiChat = (parent, { onBack, user, autoOpenPin = false, reportContex
     if (el) el.scrollTop = el.scrollHeight;
   }
 
-  function refreshMessages(showTyping = false, streamIdx = null) {
+  function refreshMessages(showTyping = false) {
     const el = parent.querySelector('#chat-messages');
     if (!el) return;
-    el.innerHTML = renderMessages(streamIdx) + (showTyping ? typingIndicator : '');
+    el.innerHTML = renderMessages() + (showTyping ? typingIndicator : '');
     scrollToBottom();
   }
 
-  // Fast typewriter: streams fullReply into the last bot bubble char-by-char
   function typeWriter(fullReply, onDone) {
-    const SPEED = 12; // ms per character — lower = faster
+    const SPEED = 12;
     let i = 0;
-    // Push a placeholder bot message that will grow
     const msgIdx = displayMsgs.length;
     displayMsgs.push({ role: 'bot', text: '', time: formatTime(new Date()) });
 
     function tick() {
       i++;
       displayMsgs[msgIdx].text = fullReply.slice(0, i);
-      refreshMessages(false, msgIdx); // re-render with live text
+      refreshMessages(false);
       if (i < fullReply.length) {
         setTimeout(tick, SPEED);
       } else {
@@ -134,12 +130,22 @@ export const AiChat = (parent, { onBack, user, autoOpenPin = false, reportContex
   }
 
   async function sendMessage(text) {
-    if (!text.trim() || isTyping) return;
+    if (isTyping) return;
+    const trimmedText = text.trim();
+    if (!trimmedText && !pendingAttachment) return;
+
     const input = parent.querySelector('#chat-input');
     if (input) input.value = '';
 
-    history.push({ role: 'user', content: text.trim() });
-    displayMsgs.push({ role: 'user', text: text.trim(), time: formatTime(new Date()) });
+    if (pendingAttachment) {
+      const file = pendingAttachment.file;
+      clearAttachment();
+      uploadAndAnalyse(file, trimmedText);
+      return;
+    }
+
+    history.push({ role: 'user', content: trimmedText });
+    displayMsgs.push({ role: 'user', text: trimmedText, time: formatTime(new Date()) });
     isTyping = true;
     refreshMessages(true);
 
@@ -147,13 +153,12 @@ export const AiChat = (parent, { onBack, user, autoOpenPin = false, reportContex
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ messages: history, userId: user?.id }),
       });
       const data = await res.json();
       const reply = data.reply || data.error || 'Sorry, something went wrong.';
+      
       history.push({ role: 'assistant', content: reply });
-
-      // Hide typing dots, then typewrite the response
       refreshMessages(false);
       typeWriter(reply, () => { isTyping = false; });
 
@@ -164,13 +169,118 @@ export const AiChat = (parent, { onBack, user, autoOpenPin = false, reportContex
     }
   }
 
+  function clearAttachment() {
+    pendingAttachment = null;
+    const preview = parent.querySelector('#attachment-preview');
+    if (preview) {
+      preview.style.display = 'none';
+      preview.innerHTML = '';
+    }
+  }
+
+  function setAttachment(file) {
+    const isImg = file.type.startsWith('image/');
+    pendingAttachment = {
+      file,
+      name: file.name,
+      type: file.type,
+      previewUrl: isImg ? URL.createObjectURL(file) : null
+    };
+
+    const container = parent.querySelector('#attachment-preview');
+    if (container) {
+      container.style.display = 'flex';
+      container.innerHTML = `
+        <div style="background:#f1f5f9; border-radius:12px; padding:0.5rem; display:flex; align-items:center; gap:0.6rem; border:1px solid #e2e8f0; max-width:200px; position:relative;">
+          ${pendingAttachment.previewUrl 
+            ? `<img src="${pendingAttachment.previewUrl}" style="width:34px; height:34px; border-radius:6px; object-fit:cover;" />`
+            : `<div style="width:34px; height:34px; background:white; border-radius:6px; display:flex; align-items:center; justify-content:center;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+               </div>`}
+          <div style="flex:1; overflow:hidden;">
+            <p style="font-size:0.65rem; color:var(--text-main); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${file.name}</p>
+            <p style="font-size:0.58rem; color:var(--text-muted);">Attached</p>
+          </div>
+          <button id="remove-attach" style="position:absolute; top:-6px; right:-6px; background:#f43f5e; color:white; border:none; border-radius:50%; width:18px; height:18px; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>`;
+      
+      container.querySelector('#remove-attach').addEventListener('click', clearAttachment);
+    }
+  }
+
+  async function uploadAndAnalyse(file, extraText = null) {
+    if (isTyping) return;
+    isTyping = true;
+
+    if (extraText) {
+      displayMsgs.push({ role: 'user', text: extraText, time: formatTime(new Date()) });
+      history.push({ role: 'user', content: extraText });
+    }
+    refreshMessages(true);
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.9);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.8rem;';
+    overlay.innerHTML = `
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      <p style="font-size:0.88rem;font-weight:700;color:var(--text-main);font-family:'Poppins',sans-serif;">Analysing your report…</p>`;
+    
+    if (!document.getElementById('spin-style')) {
+      const s = document.createElement('style'); s.id = 'spin-style';
+      s.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(s);
+    }
+    parent.appendChild(overlay);
+
+    try {
+      const form = new FormData();
+      form.append('report', file);
+      if (extraText) form.append('text', extraText);
+      if (user) form.append('patient', JSON.stringify(user));
+
+      const res = await fetch(`${API_BASE}/api/upload/report`, { method: 'POST', body: form });
+      const data = await res.json();
+      overlay.remove();
+
+      if (!res.ok || !data.report) {
+        displayMsgs.push({ role: 'bot', text: `❌ Could not analyse the file: ${data.error || 'Unknown error'}`, time: formatTime(new Date()) });
+        isTyping = false;
+      } else {
+        const r = data.report;
+        const text = [
+          `📋 **${r.report_name || 'Lab Report'}** — ${r.report_date || 'Recent'}`,
+          `Status: **${r.overall_status || '—'}**`,
+          '',
+          `**The Brief:**\n${r.brief || 'No overview available.'}`,
+          '',
+          `**Main Takeaways:**\n${r.summary || 'No summary available.'}`,
+          '',
+          `**Key Findings:**`,
+          ...(r.findings || []).map(f => `• **${f.name}**: ${f.value} ${f.unit || ''} (${f.status || 'Normal'})\n  _${f.explanation || f.insight || ''}_`),
+          '',
+          `**Recommendations:**`,
+          ...(r.recommendations || []).map(rec => `• ${rec}`),
+        ].join('\n');
+
+        displayMsgs.push({ role: 'bot', text, time: formatTime(new Date()) });
+        isTyping = false;
+      }
+      refreshMessages(false);
+
+    } catch (err) {
+      if (overlay.parentNode) overlay.remove();
+      displayMsgs.push({ role: 'bot', text: `❌ Network error: ${err.message}`, time: formatTime(new Date()) });
+      isTyping = false;
+      refreshMessages(false);
+    }
+  }
+
   function render() {
     parent.innerHTML = `
       <div style="height:100%; display:flex; flex-direction:column; background:#f8fafc;">
-
-        <!-- Header -->
         <div style="background:white; padding:1.2rem 1.2rem 0.9rem; display:flex; align-items:center; gap:1rem;
-                    border-bottom:1px solid #f1f5f9; box-shadow:0 2px 10px rgba(0,0,0,0.04); flex-shrink:0;">
+                    border-bottom:1px solid #f1f5f9; box-shadow:0 2px 10px rgba(0,0,0,0.04); flex-shrink:0; position:relative;">
           <button id="chat-back" style="background:none; border:none; cursor:pointer; padding:0.2rem; color:var(--text-main); display:flex;">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           </button>
@@ -181,24 +291,18 @@ export const AiChat = (parent, { onBack, user, autoOpenPin = false, reportContex
               <p style="font-size:0.65rem; color:#22c55e; font-weight:600;">AI is online</p>
             </div>
           </div>
-          <button style="background:none; border:none; cursor:pointer; padding:0.2rem; color:var(--text-muted); display:flex;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-          </button>
+          <div style="width:22px;"></div>
         </div>
 
-        <!-- Date label -->
-        <div style="text-align:center; padding:0.7rem; flex-shrink:0;">
-          <span style="font-size:0.67rem; color:var(--text-muted); background:#e2e8f0; padding:0.22rem 0.7rem; border-radius:50px;">
-            TODAY, ${formatTime(new Date())}
-          </span>
-        </div>
-
-        <!-- Messages -->
         <div id="chat-messages" style="flex:1; overflow-y:auto; padding:0.5rem 1.2rem; scrollbar-width:none;">
+          <div style="text-align:center; padding:1rem 0; flex-shrink:0;">
+            <span style="font-size:0.67rem; color:var(--text-muted); background:#e2e8f0; padding:0.22rem 0.7rem; border-radius:50px;">
+              TODAY, ${formatTime(new Date())}
+            </span>
+          </div>
           ${renderMessages()}
         </div>
 
-        <!-- Quick chips -->
         <div style="display:flex; gap:0.45rem; padding:0.55rem 1.2rem; overflow-x:auto; scrollbar-width:none; flex-shrink:0;">
           ${quickChips.map(c => `
             <button class="quick-chip" data-label="${c.label}"
@@ -210,62 +314,29 @@ export const AiChat = (parent, { onBack, user, autoOpenPin = false, reportContex
             </button>`).join('')}
         </div>
 
-        <!-- Input row -->
-        <div style="background:white; border-top:1px solid #f1f5f9; padding:0.75rem 1rem; display:flex; gap:0.6rem; align-items:center; flex-shrink:0; position:relative;">
+        <div id="attachment-preview" style="display:none; padding:0.5rem 1.2rem; background:white; border-top:1px solid #f1f5f9; flex-shrink:0; gap:0.5rem; align-items:center;">
+        </div>
 
-          <!-- Pin popup menu (shown when pin-btn toggled) -->
-          <div id="pin-menu" style="display:none; position:absolute; bottom:68px; left:12px;
-               background:white; border-radius:16px; box-shadow:0 8px 30px rgba(0,0,0,0.12);
-               border:1px solid #f1f5f9; overflow:hidden; z-index:100; min-width:200px;">
-            <button class="pin-option" data-type="camera"
-              style="width:100%; display:flex; align-items:center; gap:0.7rem; padding:0.85rem 1rem;
-                     background:none; border:none; cursor:pointer; font-size:0.83rem; font-family:'Poppins',sans-serif;
-                     color:var(--text-main); font-weight:600; border-bottom:1px solid #f8fafc;">
-              <span style="width:34px;height:34px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
-              </span>
-              Take Picture
-            </button>
-            <button class="pin-option" data-type="gallery"
-              style="width:100%; display:flex; align-items:center; gap:0.7rem; padding:0.85rem 1rem;
-                     background:none; border:none; cursor:pointer; font-size:0.83rem; font-family:'Poppins',sans-serif;
-                     color:var(--text-main); font-weight:600; border-bottom:1px solid #f8fafc;">
-              <span style="width:34px;height:34px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-              </span>
-              Upload from Gallery
-            </button>
-            <button class="pin-option" data-type="files"
-              style="width:100%; display:flex; align-items:center; gap:0.7rem; padding:0.85rem 1rem;
-                     background:none; border:none; cursor:pointer; font-size:0.83rem; font-family:'Poppins',sans-serif;
-                     color:var(--text-main); font-weight:600;">
-              <span style="width:34px;height:34px;background:#eff6ff;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-              </span>
-              Upload from Files
-            </button>
+        <div style="background:white; border-top:1px solid #f1f5f9; padding:0.75rem 1rem; display:flex; gap:0.6rem; align-items:center; flex-shrink:0; position:relative;">
+          <div id="pin-menu" style="display:none; position:absolute; bottom:68px; left:12px; background:white; border-radius:16px; box-shadow:0 8px 30px rgba(0,0,0,0.12); border:1px solid #f1f5f9; overflow:hidden; z-index:100; min-width:180px;">
+            <button class="pin-option" data-type="camera" style="width:100%; display:flex; align-items:center; gap:0.7rem; padding:0.8rem 1rem; background:none; border:none; cursor:pointer; font-size:0.8rem; font-weight:600; border-bottom:1px solid #f8fafc;">Take Picture</button>
+            <button class="pin-option" data-type="gallery" style="width:100%; display:flex; align-items:center; gap:0.7rem; padding:0.8rem 1rem; background:none; border:none; cursor:pointer; font-size:0.8rem; font-weight:600; border-bottom:1px solid #f8fafc;">Upload Gallery</button>
+            <button class="pin-option" data-type="files" style="width:100%; display:flex; align-items:center; gap:0.7rem; padding:0.8rem 1rem; background:none; border:none; cursor:pointer; font-size:0.8rem; font-weight:600;">Upload Files</button>
           </div>
 
-          <!-- Pin button -->
           <button id="pin-btn" style="background:none; border:none; cursor:pointer; color:var(--text-muted); display:flex; flex-shrink:0;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           </button>
 
-          <input id="chat-input" type="text" placeholder="Ask about your health..."
-                 style="flex:1; border:none; outline:none; font-size:0.82rem; font-family:'Poppins',sans-serif; color:var(--text-main); background:transparent; min-width:0;" />
-          <button id="send-btn"
-                  style="width:40px; height:40px; background:var(--primary); border:none; border-radius:50%; cursor:pointer;
-                         display:flex; align-items:center; justify-content:center;
-                         box-shadow:0 4px 14px rgba(0,82,204,0.35); flex-shrink:0;">
+          <input id="chat-input" type="text" placeholder="Ask about your health..." style="flex:1; border:none; outline:none; font-size:0.82rem; color:var(--text-main); background:transparent; min-width:0;" />
+          <button id="send-btn" style="width:40px; height:40px; background:var(--primary); border:none; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,82,204,0.35); flex-shrink:0;">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
       </div>
     `;
 
-
     parent.querySelector('#chat-back').addEventListener('click', onBack);
-
     const input = parent.querySelector('#chat-input');
     parent.querySelector('#send-btn').addEventListener('click', () => sendMessage(input.value));
     input.addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(input.value); });
@@ -273,93 +344,34 @@ export const AiChat = (parent, { onBack, user, autoOpenPin = false, reportContex
       btn.addEventListener('click', () => sendMessage(btn.dataset.label));
     });
 
-    // Pin menu toggle
     const pinBtn = parent.querySelector('#pin-btn');
     const pinMenu = parent.querySelector('#pin-menu');
-
     pinBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const open = pinMenu.style.display === 'block';
-      pinMenu.style.display = open ? 'none' : 'block';
+      pinMenu.style.display = pinMenu.style.display === 'block' ? 'none' : 'block';
     });
-
-    // Close menu on clicking outside
-    document.addEventListener('click', () => { pinMenu.style.display = 'none'; }, { once: false });
+    document.addEventListener('click', () => { if (pinMenu) pinMenu.style.display = 'none'; });
     pinMenu.addEventListener('click', e => e.stopPropagation());
 
-    // Pin menu options → hidden file inputs
     parent.querySelectorAll('.pin-option').forEach(btn => {
       btn.addEventListener('click', () => {
         pinMenu.style.display = 'none';
-        const type = btn.dataset.type;
         const fi = document.createElement('input');
         fi.type = 'file';
-        if (type === 'camera') {
-          fi.accept = 'image/*';
-          fi.capture = 'environment';
-        } else if (type === 'gallery') {
-          fi.accept = 'image/*';
-        } else {
-          fi.accept = '.pdf,image/jpeg,image/png,image/webp';
-        }
         fi.style.display = 'none';
         document.body.appendChild(fi);
         fi.onchange = async () => {
           const file = fi.files?.[0];
           fi.remove();
-          if (!file) return;
-          uploadAndAnalyse(file);
+          if (file) setAttachment(file);
         };
         fi.click();
       });
     });
 
-    // Upload a file, show spinner, then stream result into chat
-    async function uploadAndAnalyse(file) {
-      const overlay = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(255,255,255,0.9);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.8rem;';
-      overlay.innerHTML = `
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-        <p style="font-size:0.88rem;font-weight:700;color:var(--text-main);font-family:'Poppins',sans-serif;">Analysing your report…</p>`;
-      if (!document.getElementById('spin-style')) {
-        const s = document.createElement('style'); s.id = 'spin-style';
-        s.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
-        document.head.appendChild(s);
-      }
-      parent.appendChild(overlay);
-      try {
-        const form = new FormData();
-        form.append('report', file);
-        if (user) form.append('patient', JSON.stringify(user));
-        const res = await fetch(`${API_BASE}/api/upload/report`, { method: 'POST', body: form });
-        const data = await res.json();
-        overlay.remove();
-        if (!res.ok || !data.report) {
-          displayMsgs.push({ role: 'bot', text: `❌ Could not analyse the file: ${data.error || 'Unknown error'}`, time: formatTime(new Date()) });
-        } else {
-          const r = data.report;
-          const text = [
-            `📋 **${r.lab_name || 'Lab Report'}** — ${r.report_date || ''}`,
-            `Status: **${r.overall_status || '—'}**`,
-            '',
-            r.summary || '',
-            '',
-            ...(r.findings || []).map(f => `• **${f.name}**: ${f.value} (${f.status}) — ${f.insight}`),
-          ].join('\n');
-          displayMsgs.push({ role: 'bot', text, time: formatTime(new Date()) });
-        }
-        refreshMessages(false);
-      } catch (err) {
-        overlay.remove();
-        displayMsgs.push({ role: 'bot', text: `❌ Network error: ${err.message}`, time: formatTime(new Date()) });
-        refreshMessages(false);
-      }
-    }
-
     if (autoOpenPin) {
       setTimeout(() => { pinMenu.style.display = 'block'; }, 150);
     }
-
     scrollToBottom();
   }
 

@@ -1,65 +1,78 @@
 import express from 'express';
+import sql from '../db.js';
+import { generateEmbedding } from '../embeddings.js';
 
 const router = express.Router();
 
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
-const SYSTEM_PROMPT = `You are MediBot, an empathetic AI health assistant inside a personal health companion app.
+const SYSTEM_PROMPT = `You are MediBot, an empathetic AI health assistant.
 
-RESPONSE FORMAT (always follow this):
-- Use short, clear sections with bold headers like **What this means:**
-- Use bullet points (•) for lists — never long paragraphs
-- Use relevant emojis at the start of each section (💊 🩺 🥗 ⚠️ ✅ 📋)
-- Max 3-4 short bullet points per section
-- End every response with a friendly one-liner reminder to consult a doctor if relevant
+RAG CONTEXT (use this if relevant):
+{CONTEXT}
 
-CONTENT RULES:
-- Be friendly, warm, and easy to understand
-- Never invent lab values — only analyse what the user shares
-- Keep total response under 120 words`;
+RESPONSE FORMAT:
+- Use short, clear sections with bold headers (e.g., **What this means:**)
+- Use bullet points (•) for lists
+- Use relevant emojis (💊 🩺 🥗 ⚠️ ✅ 📋)
+- Max 120 words. End with a friendly medical disclaimer.`;
 
-
+// POST /
 router.post('/', async (req, res) => {
-    const { messages } = req.body;
+    let { messages, userId } = req.body;
 
     if (!messages || !Array.isArray(messages)) {
         return res.status(400).json({ error: 'messages array required' });
     }
 
-    const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey) {
-        return res.status(500).json({ error: 'GROQ_API_KEY not configured on server' });
-    }
+    const lastMsg = messages[messages.length - 1].content;
 
     try {
+        // 1. RAG: Vector Search (keep this as reports remain in Neon)
+        let context = "No specific report context found.";
+        if (userId) {
+            try {
+                const queryEmb = await generateEmbedding(lastMsg);
+                const matches = await sql`
+                    SELECT brief, summary, markers 
+                    FROM reports 
+                    WHERE user_id = ${userId} 
+                    ORDER BY embedding <=> vector(${queryEmb})
+                    LIMIT 2
+                `;
+                if (matches.length > 0) {
+                    context = matches.map(m => `Report: ${m.brief}. Summary: ${m.summary}. Data: ${JSON.stringify(m.markers)}`).join('\n\n');
+                }
+            } catch (vErr) {
+                console.error('Vector Search Error:', vErr);
+            }
+        }
+
+        // 2. LLM Call
         const response = await fetch(GROQ_API, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${apiKey}`,
+                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 model: 'llama-3.3-70b-versatile',
                 messages: [
-                    { role: 'system', content: SYSTEM_PROMPT },
+                    { role: 'system', content: SYSTEM_PROMPT.replace('{CONTEXT}', context) },
                     ...messages,
                 ],
                 temperature: 0.7,
-                max_tokens: 300,
+                max_tokens: 400,
             }),
         });
 
-        if (!response.ok) {
-            const err = await response.text();
-            return res.status(response.status).json({ error: err });
-        }
-
         const data = await response.json();
         const reply = data.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.';
+
         res.json({ reply });
 
     } catch (err) {
-        console.error('Groq error:', err);
-        res.status(500).json({ error: 'Failed to reach Groq API' });
+        console.error('Chat error:', err);
+        res.status(500).json({ error: 'Failed to reach AI' });
     }
 });
 
